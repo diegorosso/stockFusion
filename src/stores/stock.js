@@ -1,41 +1,13 @@
-import { reactive, computed, watch } from 'vue'
+import { reactive, computed } from 'vue'
+import { supabase } from '../supabase.js'
 
-// ── Persistencia ───────────────────────────────────────────
-const STORAGE_KEY = 'stockfusion-data'
-
-const defaultProducts = [
-  { id: 1, name: 'Pancho de langostinos',       cat: 'panchos',     emoji: '🦐', qty: 24, min: 10 },
-  { id: 2, name: 'Pancho de salmón',             cat: 'panchos',     emoji: '🐟', qty: 8,  min: 10 },
-  { id: 3, name: 'Ebi furai',                    cat: 'fritos',      emoji: '🍤', qty: 0,  min: 8  },
-  { id: 4, name: 'Empanadita china de carne',    cat: 'empanaditas', emoji: '🥟', qty: 15, min: 12 },
-  { id: 5, name: 'Empanadita china de verdura',  cat: 'empanaditas', emoji: '🥬', qty: 5,  min: 12 },
-]
-
-function loadFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { products: defaultProducts, history: [] }
-    const parsed = JSON.parse(raw)
-    return {
-      products: Array.isArray(parsed.products) && parsed.products.length ? parsed.products : defaultProducts,
-      history: Array.isArray(parsed.history) ? parsed.history : [],
-    }
-  } catch (e) {
-    console.error('No se pudo leer el stock guardado, usando valores por defecto.', e)
-    return { products: defaultProducts, history: [] }
-  }
-}
-
-function saveToStorage() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      products: state.products,
-      history: state.history,
-    }))
-  } catch (e) {
-    console.error('No se pudo guardar el stock.', e)
-  }
-}
+// ── State ──────────────────────────────────────────────────
+const state = reactive({
+  products: [],
+  history: [],
+  loading: true,
+  error: null,
+})
 
 // ── Helpers ────────────────────────────────────────────────
 export function getStatus(p) {
@@ -49,8 +21,8 @@ export function getBarPct(p) {
   return Math.min(100, Math.round(p.qty / Math.max(p.min * 2, p.qty) * 100))
 }
 
-function now() {
-  const d = new Date()
+function formatTime(isoString) {
+  const d = new Date(isoString)
   return (
     d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) +
     ' · ' +
@@ -58,20 +30,70 @@ function now() {
   )
 }
 
-// ── State (cargado desde localStorage si existe) ────────────
-const initial = loadFromStorage()
+// ── Carga inicial desde Supabase ─────────────────────────────
+export async function initStock() {
+  state.loading = true
+  state.error = null
 
-const state = reactive({
-  products: initial.products,
-  history: initial.history,
-})
+  const { data: products, error: prodErr } = await supabase
+    .from('products')
+    .select('*')
+    .order('id', { ascending: true })
 
-// Guarda automáticamente cada vez que cambia algo en products o history
-watch(
-  () => state,
-  () => saveToStorage(),
-  { deep: true }
-)
+  if (prodErr) {
+    state.error = prodErr.message
+    state.loading = false
+    return
+  }
+
+  const { data: history, error: histErr } = await supabase
+    .from('stock_history')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (histErr) {
+    state.error = histErr.message
+  }
+
+  state.products = products ?? []
+  state.history = (history ?? []).map(h => ({
+    ...h,
+    time: formatTime(h.created_at),
+  }))
+
+  state.loading = false
+
+  subscribeToChanges()
+}
+
+// ── Realtime: escucha cambios de otros dispositivos ──────────
+let subscribed = false
+
+function subscribeToChanges() {
+  if (subscribed) return
+  subscribed = true
+
+  supabase
+    .channel('stock-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
+      const idx = state.products.findIndex(p => p.id === payload.new?.id ?? payload.old?.id)
+      if (payload.eventType === 'UPDATE' && idx !== -1) {
+        state.products[idx] = payload.new
+      } else if (payload.eventType === 'INSERT') {
+        state.products.push(payload.new)
+      } else if (payload.eventType === 'DELETE' && idx !== -1) {
+        state.products.splice(idx, 1)
+      }
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stock_history' }, (payload) => {
+      const exists = state.history.some(h => h.id === payload.new.id)
+      if (!exists) {
+        state.history.unshift({ ...payload.new, time: formatTime(payload.new.created_at) })
+      }
+    })
+    .subscribe()
+}
 
 // ── Computed stats ─────────────────────────────────────────
 export const stats = computed(() => {
@@ -93,55 +115,82 @@ export function getProducts(cat = 'todos') {
 }
 
 export function getHistory() {
-  return [...state.history].reverse()
+  return state.history
 }
 
 export function getAlerts() {
   return state.products.filter(p => getStatus(p) !== 'ok')
 }
 
-// ── Actions ────────────────────────────────────────────────
-export function adjustQty(id, delta) {
+export function getProduct(id) {
+  return state.products.find(x => x.id === id)
+}
+
+// ── Actions (escriben en Supabase) ───────────────────────────
+export async function adjustQty(id, delta) {
   const p = state.products.find(x => x.id === id)
   if (!p) return
   const newQty = Math.max(0, p.qty + delta)
   if (newQty === p.qty) return
   const actual = newQty - p.qty
+
+  // Actualización local optimista (se ve al instante en este dispositivo)
   p.qty = newQty
-  state.history.push({
+
+  const { error: updErr } = await supabase
+    .from('products')
+    .update({ qty: newQty, updated_at: new Date().toISOString() })
+    .eq('id', id)
+
+  if (updErr) {
+    state.error = updErr.message
+    return
+  }
+
+  const { error: histErr } = await supabase.from('stock_history').insert({
     id: Date.now(),
+    product_id: id,
     name: p.name,
     emoji: p.emoji,
     delta: Math.abs(actual),
     type: actual > 0 ? 'add' : 'rem',
-    time: now(),
   })
+
+  if (histErr) state.error = histErr.message
 }
 
-export function updateProduct(id, qty, min) {
+export async function updateProduct(id, qty, min) {
   const p = state.products.find(x => x.id === id)
   if (!p) return
-  if (qty !== p.qty) {
-    state.history.push({
+
+  const safeQty = Math.max(0, qty)
+  const safeMin = Math.max(0, min)
+  const qtyChanged = safeQty !== p.qty
+
+  p.qty = safeQty
+  p.min = safeMin
+
+  const { error: updErr } = await supabase
+    .from('products')
+    .update({ qty: safeQty, min: safeMin, updated_at: new Date().toISOString() })
+    .eq('id', id)
+
+  if (updErr) {
+    state.error = updErr.message
+    return
+  }
+
+  if (qtyChanged) {
+    const { error: histErr } = await supabase.from('stock_history').insert({
       id: Date.now(),
+      product_id: id,
       name: p.name,
       emoji: p.emoji,
-      delta: qty,
+      delta: safeQty,
       type: 'set',
-      time: now(),
     })
+    if (histErr) state.error = histErr.message
   }
-  p.qty = Math.max(0, qty)
-  p.min = Math.max(0, min)
-}
-
-export function getProduct(id) {
-  return state.products.find(x => x.id === id)
-}
-
-export function resetStock() {
-  state.products = JSON.parse(JSON.stringify(defaultProducts))
-  state.history = []
 }
 
 export { state }

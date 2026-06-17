@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AppHeader     from './components/AppHeader.vue'
 import CategoryTabs  from './components/CategoryTabs.vue'
 import BottomNav     from './components/BottomNav.vue'
@@ -39,7 +39,7 @@ import StockView     from './components/StockView.vue'
 import HistoryView   from './components/HistoryView.vue'
 import AlertsView    from './components/AlertsView.vue'
 import EditSheet     from './components/EditSheet.vue'
-import { getProduct, updateProduct } from './stores/stock.js'
+import { getProduct, updateProduct, initStock } from './stores/stock.js'
 
 const activeView = ref('stock')
 const activeTab  = ref('todos')
@@ -49,6 +49,10 @@ const editingId  = ref(null)
 const editingProduct = computed(() =>
   editingId.value ? getProduct(editingId.value) : null
 )
+
+onMounted(() => {
+  initStock()
+})
 
 function openEdit(id) {
   editingId.value = id
