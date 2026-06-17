@@ -48,6 +48,7 @@ const CATS = [
   { id: 'panchos',     label: 'Panchos' },
   { id: 'fritos',      label: 'Fritos' },
   { id: 'empanaditas', label: 'Empanaditas' },
+  { id: 'burgers',     label: 'Burgers' },
 ]
 
 const filteredProducts = computed(() => getProducts(props.activeTab))

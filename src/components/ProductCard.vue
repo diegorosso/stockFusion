@@ -51,7 +51,12 @@ const props = defineProps({
 
 defineEmits(['adjust', 'edit'])
 
-const CAT_LABELS = { panchos: 'Panchos', fritos: 'Fritos', empanaditas: 'Empanaditas' }
+const CAT_LABELS = {
+  panchos: 'Panchos',
+  fritos: 'Fritos',
+  empanaditas: 'Empanaditas',
+  burgers: 'Burgers',
+}
 
 const CHIP_LABELS = { ok: 'OK', warn: 'Stock bajo', low: 'Sin stock' }
 
