@@ -1,4 +1,41 @@
-import { reactive, computed } from 'vue'
+import { reactive, computed, watch } from 'vue'
+
+// ── Persistencia ───────────────────────────────────────────
+const STORAGE_KEY = 'stockfusion-data'
+
+const defaultProducts = [
+  { id: 1, name: 'Pancho de langostinos',       cat: 'panchos',     emoji: '🦐', qty: 24, min: 10 },
+  { id: 2, name: 'Pancho de salmón',             cat: 'panchos',     emoji: '🐟', qty: 8,  min: 10 },
+  { id: 3, name: 'Ebi furai',                    cat: 'fritos',      emoji: '🍤', qty: 0,  min: 8  },
+  { id: 4, name: 'Empanadita china de carne',    cat: 'empanaditas', emoji: '🥟', qty: 15, min: 12 },
+  { id: 5, name: 'Empanadita china de verdura',  cat: 'empanaditas', emoji: '🥬', qty: 5,  min: 12 },
+]
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return { products: defaultProducts, history: [] }
+    const parsed = JSON.parse(raw)
+    return {
+      products: Array.isArray(parsed.products) && parsed.products.length ? parsed.products : defaultProducts,
+      history: Array.isArray(parsed.history) ? parsed.history : [],
+    }
+  } catch (e) {
+    console.error('No se pudo leer el stock guardado, usando valores por defecto.', e)
+    return { products: defaultProducts, history: [] }
+  }
+}
+
+function saveToStorage() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      products: state.products,
+      history: state.history,
+    }))
+  } catch (e) {
+    console.error('No se pudo guardar el stock.', e)
+  }
+}
 
 // ── Helpers ────────────────────────────────────────────────
 export function getStatus(p) {
@@ -21,17 +58,20 @@ function now() {
   )
 }
 
-// ── State ──────────────────────────────────────────────────
+// ── State (cargado desde localStorage si existe) ────────────
+const initial = loadFromStorage()
+
 const state = reactive({
-  products: [
-    { id: 1, name: 'Pancho de langostinos',       cat: 'panchos',     emoji: '🦐', qty: 24, min: 10 },
-    { id: 2, name: 'Pancho de salmón',             cat: 'panchos',     emoji: '🐟', qty: 8,  min: 10 },
-    { id: 3, name: 'Ebi furai',                    cat: 'fritos',      emoji: '🍤', qty: 0,  min: 8  },
-    { id: 4, name: 'Empanadita china de carne',    cat: 'empanaditas', emoji: '🥟', qty: 15, min: 12 },
-    { id: 5, name: 'Empanadita china de verdura',  cat: 'empanaditas', emoji: '🥬', qty: 5,  min: 12 },
-  ],
-  history: [],
+  products: initial.products,
+  history: initial.history,
 })
+
+// Guarda automáticamente cada vez que cambia algo en products o history
+watch(
+  () => state,
+  () => saveToStorage(),
+  { deep: true }
+)
 
 // ── Computed stats ─────────────────────────────────────────
 export const stats = computed(() => {
@@ -97,6 +137,11 @@ export function updateProduct(id, qty, min) {
 
 export function getProduct(id) {
   return state.products.find(x => x.id === id)
+}
+
+export function resetStock() {
+  state.products = JSON.parse(JSON.stringify(defaultProducts))
+  state.history = []
 }
 
 export { state }
