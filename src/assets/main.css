@@ -1,0 +1,66 @@
+@import url('https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:        #0c0c11;
+  --s1:        #14141c;
+  --s2:        #1a1a22;
+  --s3:        #22222e;
+  --s4:        #2c2c3a;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.12);
+
+  --accent:    #7c6fcd;
+  --accent-l:  #9d92e0;
+  --accent-xl: #c4bef0;
+  --accent-d:  rgba(124,111,205,0.15);
+  --accent-dd: rgba(124,111,205,0.08);
+
+  --text-p:    #f0eff8;
+  --text-s:    #9896a8;
+  --text-m:    #55546a;
+
+  --ok:        #3fc97e;
+  --ok-d:      rgba(63,201,126,0.12);
+  --ok-b:      rgba(63,201,126,0.25);
+
+  --warn:      #f0a040;
+  --warn-d:    rgba(240,160,64,0.12);
+  --warn-b:    rgba(240,160,64,0.25);
+
+  --low:       #e05c5c;
+  --low-d:     rgba(224,92,92,0.12);
+  --low-b:     rgba(224,92,92,0.25);
+
+  --r:         12px;
+  --r2:        8px;
+  --r3:        6px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-p);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+#app {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+button { font-family: inherit; cursor: pointer; }
+input  { font-family: inherit; }
