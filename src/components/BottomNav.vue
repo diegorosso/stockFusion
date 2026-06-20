@@ -31,6 +31,7 @@ const items = [
   { id: 'stock',     label: 'Stock',     icon: 'ti-package' },
   { id: 'historial', label: 'Historial', icon: 'ti-history' },
   { id: 'alertas',   label: 'Alertas',   icon: 'ti-bell'    },
+  { id: 'reportes',  label: 'Reportes',  icon: 'ti-chart-bar' },
 ]
 </script>
 
@@ -66,7 +67,7 @@ const items = [
   text-transform: uppercase;
 }
 
-.nav-btn i { font-size: 22px; }
+.nav-btn i { font-size: 20px; }
 .nav-btn.active { color: var(--accent-l); }
 
 .nav-icon-wrap { position: relative; display: inline-flex; }

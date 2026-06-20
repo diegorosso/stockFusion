@@ -18,6 +18,7 @@
         v-else-if="activeView === 'alertas'"
         @edit="openEdit"
       />
+      <ReportsView v-else-if="activeView === 'reportes'" />
     </main>
 
     <BottomNav v-model="activeView" />
@@ -38,6 +39,7 @@ import BottomNav     from './components/BottomNav.vue'
 import StockView     from './components/StockView.vue'
 import HistoryView   from './components/HistoryView.vue'
 import AlertsView    from './components/AlertsView.vue'
+import ReportsView   from './components/ReportsView.vue'
 import EditSheet     from './components/EditSheet.vue'
 import { getProduct, updateProduct, initStock } from './stores/stock.js'
 
