@@ -77,7 +77,7 @@ function subscribeToChanges() {
   supabase
     .channel('stock-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
-      const idx = state.products.findIndex(p => p.id === payload.new?.id ?? payload.old?.id)
+      const idx = state.products.findIndex(p => p.id === (payload.new?.id ?? payload.old?.id))
       if (payload.eventType === 'UPDATE' && idx !== -1) {
         state.products[idx] = payload.new
       } else if (payload.eventType === 'INSERT') {
@@ -134,7 +134,6 @@ export async function adjustQty(id, delta) {
   if (newQty === p.qty) return
   const actual = newQty - p.qty
 
-  // Actualización local optimista (se ve al instante en este dispositivo)
   p.qty = newQty
 
   const { error: updErr } = await supabase
@@ -165,7 +164,7 @@ export async function updateProduct(id, qty, min) {
 
   const safeQty = Math.max(0, qty)
   const safeMin = Math.max(0, min)
-  const qtyChanged = safeQty !== p.qty
+  const diff = safeQty - p.qty // negativo = bajó (consumo), positivo = subió (reposición)
 
   p.qty = safeQty
   p.min = safeMin
@@ -180,14 +179,16 @@ export async function updateProduct(id, qty, min) {
     return
   }
 
-  if (qtyChanged) {
+  if (diff !== 0) {
+    // Si bajó la cantidad => se registra como consumo ('rem') para que aparezca en Reportes.
+    // Si subió => se registra como 'add' (reposición), que Reportes no cuenta como consumo.
     const { error: histErr } = await supabase.from('stock_history').insert({
       id: Date.now(),
       product_id: id,
       name: p.name,
       emoji: p.emoji,
-      delta: safeQty,
-      type: 'set',
+      delta: Math.abs(diff),
+      type: diff < 0 ? 'rem' : 'add',
     })
     if (histErr) state.error = histErr.message
   }
